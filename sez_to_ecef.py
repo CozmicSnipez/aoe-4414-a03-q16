@@ -28,6 +28,19 @@ R_E_KM = 6378.137  # Equatorial radius in kilometers
 E_E    = 0.081819221456  # Earth's eccentricity
 
 # helper functions
+def calc_denom(ecc, lat_rad):
+    """Calculate the denominator in the ECEF conversion equation."""
+    return math.sqrt(1.0-(ecc**2)*(math.sin(lat_rad)**2))
+
+def llh_to_ecef(o_lat_rad, o_lon_rad, o_hae_km):
+    """Convert observer's latitude, longitude, and height to ECEF coordinates."""
+    denom = calc_denom(E_E, o_lat_rad)
+    N = R_E_KM/denom  # Radius of curvature in the prime vertical
+    x = (N+o_hae_km)*math.cos(o_lat_rad)*math.cos(o_lon_rad)
+    y = (N+o_hae_km)*math.cos(o_lat_rad)*math.sin(o_lon_rad)
+    z = (N*(1-E_E**2)+o_hae_km)*math.sin(o_lat_rad)
+    return x, y, z
+
 def sez_to_ecef(o_lat_rad, o_lon_rad, s_km, e_km, z_km):
     """Converts SEZ to ECEF coordinates given observer latitude, longitude, and SEZ vector."""
     # Transformation matrix from SEZ to ECEF
@@ -67,8 +80,16 @@ else:
 o_lat_rad = math.radians(o_lat_deg)
 o_lon_rad = math.radians(o_lon_deg)
 
-# convert SEZ coordinates to ECEF coordinates
-ecef_x_km, ecef_y_km, ecef_z_km = sez_to_ecef(o_lat_rad, o_lon_rad, s_km, e_km, z_km)
+# convert observer's location (LLH) to ECEF coordinates
+obs_ecef_x_km, obs_ecef_y_km, obs_ecef_z_km = llh_to_ecef(o_lat_rad, o_lon_rad, o_hae_km)
+
+# convert SEZ coordinates to ECEF coordinates (relative to observer)
+sez_x_km, sez_y_km, sez_z_km = sez_to_ecef(o_lat_rad, o_lon_rad, s_km, e_km, z_km)
+
+# add observer's ECEF position to the SEZ-transformed ECEF coordinates
+ecef_x_km = obs_ecef_x_km+sez_x_km
+ecef_y_km = obs_ecef_y_km+sez_y_km
+ecef_z_km = obs_ecef_z_km+sez_z_km
 
 # print ECEF x, y, and z coordinates in km
 print(ecef_x_km)
